@@ -5,6 +5,7 @@ import itertools
 import random
 import sys
 import yaml
+from beans.multitask import load_model_for_task
 
 from sklearn import preprocessing
 from sklearn.ensemble import GradientBoostingClassifier
@@ -178,6 +179,7 @@ def train_pytorch_model(
                 multi_label=(args.task=='detection')).to(device)
 
         optimizer = optim.Adam(params=model.parameters(), lr=lr)
+        load_model_for_task(model=model, task_name=args.dataset, sufix=f"{model.__class__.__name__}{str(lr)}")
 
         for epoch in range(args.epochs):
             print(f'epoch = {epoch}', file=sys.stderr)
@@ -260,7 +262,7 @@ def main():
     else:
         log_file = sys.stderr
 
-    device = torch.device('cuda:0')
+    device = torch.device('mps')
 
     if args.model_type == 'vggish':
         feature_type = 'vggish'
