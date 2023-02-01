@@ -5,7 +5,7 @@ import itertools
 import random
 import sys
 import yaml
-from beans.multitask import get_metric_factory, save_model_dict, switch_head, switch_loss, switch_metric
+from beans.multitask import get_metric_factory, save_model_dict, switch_head, switch_loss, switch_metric, TASKS
 from beans.sampling import ProportionalMultiTaskSampler
 
 from sklearn import preprocessing
@@ -22,7 +22,7 @@ from tqdm import tqdm
 from xgboost import XGBClassifier
 
 from beans.metrics import Accuracy, MeanAveragePrecision
-from beans.models import ResNetClassifier, VGGishClassifier
+from beans.models import AvesClassifier, ResNetClassifier, VGGishClassifier
 from beans.datasets import ClassificationDataset, RecognitionDataset
 
 
@@ -122,6 +122,7 @@ def train_sklearn_model(args, dataloader_train, dataloader_valid, num_labels, me
 
 def eval_pytorch_model(model, dataloader, metric_factory, device, desc):
     model.eval()
+    model_copy = model.to(device)
     total_loss = 0.
     steps = 0
     metric = metric_factory()
@@ -130,10 +131,11 @@ def eval_pytorch_model(model, dataloader, metric_factory, device, desc):
             x = x.to(device)
             y = y.to(device)
 
-            loss, logits = model(x, y)
+            loss, logits = model_copy(x, y)
             total_loss += loss.cpu().item()
             steps += 1
-
+            logits = logits.to("cpu")
+            y = y.to("cpu")
             metric.update(logits, y)
 
     total_loss /= steps
@@ -172,6 +174,12 @@ def train_pytorch_model(
                 sample_rate=16000, #WHERE IS THIS USED?
                 num_classes=1000,
                 multi_label=(args.task=='detection')).to(device)
+        elif args.model_type == 'aves':
+            model = AvesClassifier(
+                model_path=args.model_path,
+                num_classes=1000, #dummy num classes
+                multi_label=(args.task=='detection')
+                ).to(device)
 
         optimizer = optim.Adam(params=model.parameters(), lr=lr)
 
@@ -220,7 +228,8 @@ def train_pytorch_model(
             
             best_model_dict = {}
             best_metric_dict = {}
-            ban_list = ["cbi", "rfcx"]
+            # ban_list = ["cbi", "rfcx"]
+            ban_list = []
 
             for task_name, dataloader_valid in dataloader_dict_valid.items():
                 if task_name in ban_list:
@@ -234,6 +243,9 @@ def train_pytorch_model(
                 train_metric = switch_metric(task_name=task_name, metric_dict=train_metric_dict)
                 valid_metric_best = 0.
                 print(f"calling eval on task {task_name} with metric {metric_factory}")
+                # classification_tasks = {t[1] for t in TASKS if t[0] == "classification"}
+                # detection_tasks = {t[1] for t in TASKS if t[0] == "detection"}
+                # device_for_eval = "cpu" if task_name in detection_tasks else "mps"
                 valid_loss, valid_metric = eval_pytorch_model(
                     model=model,
                     dataloader=dataloader_valid,
@@ -267,6 +279,7 @@ def train_pytorch_model(
 
 
 def main():
+    print("eval multitask.")
     datasets = read_datasets('datasets.yml')
 
     parser = argparse.ArgumentParser()
@@ -280,11 +293,12 @@ def main():
         'resnet18', 'resnet18-pretrained',
         'resnet50', 'resnet50-pretrained',
         'resnet152', 'resnet152-pretrained',
-        'vggish'])
+        'vggish', 'aves'])
     parser.add_argument('--dataset', choices=["all"])
     parser.add_argument('--num-workers', type=int, default=4)
     parser.add_argument('--stop-shuffle', action='store_true')
     parser.add_argument('--log-path', type=str)
+    parser.add_argument("--model-path", type=str)
     args = parser.parse_args()
 
     torch.random.manual_seed(42)
@@ -302,6 +316,8 @@ def main():
         feature_type = 'vggish'
     elif args.model_type.startswith('resnet'):
         feature_type = 'melspectrogram'
+    elif args.model_type == 'aves':
+        feature_type = 'waveform'
     else:
         feature_type = 'mfcc'
 
@@ -313,7 +329,8 @@ def main():
     task_to_num_examples_train = {}
 
     # ban_list = ["esc50"]
-    ban_list = ["cbi", "rfcx"]
+    # ban_list = ["cbi", "rfcx"]
+    ban_list = []
 
     for dataset_name in datasets.keys():
 

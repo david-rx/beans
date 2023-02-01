@@ -11,7 +11,7 @@ python scripts/cbi.py
 # mkdir data/hiceas
 # wget https://storage.googleapis.com/ml-bioacoustics-datasets/hiceas_1-20_minke-detection.zip -O data/hiceas/hiceas.zip
 # unzip data/hiceas/hiceas.zip -d data/hiceas
-# python scripts/rfcx.py
+python scripts/rfcx.py
 # python scripts/hainan_gibbons.py
 # python scripts/esc50.py
 # python scripts/speech_commands.py

@@ -1,5 +1,5 @@
 import argparse
-
+import fairseq
 import torch
 import torch.nn as nn
 import torchvision
@@ -74,3 +74,28 @@ class VGGishClassifier(nn.Module):
 
         return loss, logits
 
+class AvesClassifier(nn.Module):
+    def __init__(self, model_path, num_classes, embeddings_dim=768, multi_label=False):
+
+        super().__init__()
+
+        models, cfg, task = fairseq.checkpoint_utils.load_model_ensemble_and_task([model_path])
+        self.model = models[0]
+        self.model.feature_extractor.requires_grad_(False)
+        self.linear = nn.Linear(in_features=embeddings_dim, out_features=num_classes)
+
+        if multi_label:
+            self.loss_func = nn.BCEWithLogitsLoss()
+        else:
+            self.loss_func = nn.CrossEntropyLoss()
+
+    def forward(self, x, y=None):
+        out = self.model.extract_features(x)[0]
+        out = out.mean(dim=1)             # mean pooling
+        logits = self.linear(out)
+
+        loss = None
+        if y is not None:
+            loss = self.loss_func(logits, y)
+
+        return loss, logits

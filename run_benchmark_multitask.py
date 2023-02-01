@@ -17,6 +17,7 @@ MODELS = [
     # ('resnet50-pretrained', 'resnet50-pretrained', ''),
     # ('resnet152', 'resnet152', ''),
     # ('resnet152-pretrained', 'resnet152-pretrained', ''),
+    # ('aves', 'aves', '../models/aves-base-bio.pt')
     # ('vggish', 'vggish', ''),
 ]
 
@@ -37,7 +38,9 @@ TASKS = [
 
 for model_name, model_type, model_params in MODELS:
     print(f'Running multitask:: - {model_name}', file=sys.stderr)
-    log_path = f'logs/debug-corrected-multitask-{model_name}'
+    log_path = f'logs/all-multitask-{model_name}'
+    print("log path is", log_path)
+    
     try:
         if model_type in ['lr', 'svm', 'decisiontree', 'gbdt', 'xgboost']:
             python[
@@ -49,15 +52,17 @@ for model_name, model_type, model_params in MODELS:
                 '--log-path', log_path,
                 '--num-workers', '4'] & FG
         else:
+            print("pt model, type is", model_type)
             python[
                 'scripts/evaluate_multitask.py',
                 '--task', "all",
                 '--dataset', "all",
                 '--model-type', model_type,
                 '--batch-size', '32',
-                '--epochs', '30',
+                '--epochs', '35',
                 '--lrs', '[1e-5, 5e-5, 1e-4]',
                 '--log-path', log_path,
-                '--num-workers', '1'] & FG
+                '--num-workers', '1',
+                '--model-path', model_params] & FG
     except ProcessExecutionError as e:
         print(e)

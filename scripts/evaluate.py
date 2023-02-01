@@ -21,7 +21,7 @@ from tqdm import tqdm
 from xgboost import XGBClassifier
 
 from beans.metrics import Accuracy, MeanAveragePrecision
-from beans.models import ResNetClassifier, VGGishClassifier
+from beans.models import AvesClassifier, ResNetClassifier, VGGishClassifier
 from beans.datasets import ClassificationDataset, RecognitionDataset
 
 
@@ -133,6 +133,9 @@ def eval_pytorch_model(model, dataloader, metric_factory, device, desc):
             total_loss += loss.cpu().item()
             steps += 1
 
+            logits = logits.to("cpu")
+            y = y.to("cpu") # metrics don't work on Apple silicon
+
             metric.update(logits, y)
 
     total_loss /= steps
@@ -177,6 +180,13 @@ def train_pytorch_model(
                 sample_rate=sample_rate,
                 num_classes=num_labels,
                 multi_label=(args.task=='detection')).to(device)
+        elif args.model_type == 'aves':
+            model = AvesClassifier(
+                model_path=args.model_path,
+                num_classes=num_labels,
+                multi_label=(args.task=='detection')
+                ).to(device)
+                
 
         optimizer = optim.Adam(params=model.parameters(), lr=lr)
         load_model_for_task(model=model, task_name=args.dataset, sufix=f"{model.__class__.__name__}{str(lr)}")
@@ -248,11 +258,12 @@ def main():
         'resnet18', 'resnet18-pretrained',
         'resnet50', 'resnet50-pretrained',
         'resnet152', 'resnet152-pretrained',
-        'vggish'])
+        'vggish', 'aves'])
     parser.add_argument('--dataset', choices=datasets.keys())
     parser.add_argument('--num-workers', type=int, default=4)
     parser.add_argument('--stop-shuffle', action='store_true')
     parser.add_argument('--log-path', type=str)
+    parser.add_argument("--model-path", type=str, default="")
     args = parser.parse_args()
 
     torch.random.manual_seed(42)

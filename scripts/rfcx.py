@@ -13,7 +13,7 @@ from beans.utils import get_wav_length_in_secs
 dataset = {}
 
 local['mkdir']['-p', 'data/rfcx/wav']()
-local['kaggle']['competitions', 'download', '-p', 'data/rfcx', 'rfcx-species-audio-detection'] & FG
+local['kaggle']['competitions', 'download', '-p', 'data/rfcx', 'rfcx-species-audio-detection', '--force'] & FG
 local['unzip']['data/rfcx/rfcx-species-audio-detection.zip', '-d', 'data/rfcx/'] & FG
 
 dest_dir = pathlib.Path('data/rfcx/wav')

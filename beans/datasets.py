@@ -114,8 +114,6 @@ class MultiTaskDataset(Dataset):
         dataset_idx = np.searchsorted(self.cumulative_lengths, idx, side='right')
         return self.datasets[dataset_idx][idx - self.cumulative_lengths[dataset_idx-1]]
 
-
-
 class ClassificationDataset(Dataset):
     def __init__(
         self,
