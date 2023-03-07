@@ -75,6 +75,17 @@
   sample_rate: 44100
   max_duration: 3
 
+- name: fsd50k
+  type: classification
+  train_data: data/fsd50k/annotations.train.csv
+  valid_data: data/fsd50k/annotations.valid.csv
+  test_data: data/fsd50k/annotations.test.csv
+  num_labels: 200
+  labels: [] #fix
+  unknown_label: null
+  sample_rate: 44100 #fix
+  max_duration: 10 #fix
+
 - name: dcase
   type: detection
   train_data: data/dcase/train.jsonl

@@ -6,7 +6,7 @@ import random
 
 sox = local['sox']
 local['mkdir']['-p', 'data/cbi/wav']()
-local['kaggle']['competitions', 'download', '-p', 'data/cbi', 'birdsong-recognition'] & FG
+local['kaggle']['competitions', 'download', '-p', 'data/cbi', 'birdsong-recognition', '--force'] & FG
 local['unzip']['data/cbi/birdsong-recognition.zip', '-d', 'data/cbi/'] & FG
 
 random.seed(42)

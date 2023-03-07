@@ -1,3 +1,4 @@
+import numpy as np
 import json
 import pandas as pd
 
@@ -99,6 +100,19 @@ def _get_vggish_spectrogram_with_offset(filename, st, ed, max_duration, target_s
     spec = vggish_input.waveform_to_examples(waveform, target_sample_rate, return_tensor=True)
     return spec
 
+
+class MultiTaskDataset(Dataset):
+    def __init__(self, datasets):
+        self.datasets = datasets
+        self.lengths = [len(dataset) for dataset in self.datasets]
+        self.cumulative_lengths = np.cumsum(self.lengths)
+
+    def __len__(self):
+        return self.cumulative_lengths[-1]
+
+    def __getitem__(self, idx):
+        dataset_idx = np.searchsorted(self.cumulative_lengths, idx, side='right')
+        return self.datasets[dataset_idx][idx - self.cumulative_lengths[dataset_idx-1]]
 
 class ClassificationDataset(Dataset):
     def __init__(
