@@ -188,6 +188,8 @@ def train_pytorch_model(
         task_head_dict = {}
         train_metric_dict = {}
 
+        optimizer = get_optimizer(model, task_head_dict, num_labels_dict)
+
 
 
         for epoch in range(args.epochs):
@@ -196,15 +198,18 @@ def train_pytorch_model(
 
             model.train()
 
-            if epoch <= frozen_epochs:
-                for p in model.parameters():
-                    p.requires_grad = False
-                model.linear.requires_grad = True
-            else:
-                for p in model.parameters():
-                    p.requires_grad = True
+            # if epoch <= frozen_epochs:
+            #     for name, p in model.named_parameters():
+            #         p.requires_grad = False
+            #         print("p.name", name)
+            #     model.linear.requires_grad = True
+            #     print("linear", model.linear)
 
-            optimizer = optim.Adam(params=[p for p in model.parameters() if p.requires_grad], lr=lr)
+            # else:
+            #     for p in model.parameters():
+            #         p.requires_grad = True
+
+                
 
 
             train_loss = 0.
@@ -217,6 +222,7 @@ def train_pytorch_model(
                 num_labels = num_labels_dict[task_name]
                 switch_head(task_name=task_name, model=model, num_labels=num_labels, task_head_dict=task_head_dict)
                 switch_loss(model=model, task_name=task_name)
+                # optimizer = optim.Adam(params=[p for p in model.parameters() if p.requires_grad], lr=lr)
                 train_metric = switch_metric(task_name=task_name, metric_dict=train_metric_dict)
                 try:
                     x, y = next(task_dataloader)
@@ -298,7 +304,7 @@ def main():
     datasets = read_datasets('datasets.yml')
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--batch-size', type=int, default=32)
+    parser.add_argument('--batch-size', type=int, default=8)
     parser.add_argument('--epochs', type=int, default=30)
     parser.add_argument('--lrs', type=str)
     parser.add_argument('--params', type=str)
@@ -323,8 +329,8 @@ def main():
     else:
         log_file = sys.stderr
 
-    # device = torch.device('cuda:0')
-    device = torch.device("mps")
+    device = torch.device('cuda:0')
+    # device = torch.device("mps")
 
 
     if args.model_type == 'vggish':

@@ -12,12 +12,12 @@ MODELS = [
     # ('gbdt', 'gbdt', '{"n_estimators": [10, 50, 100, 200]}'),
     # ('xgboost', 'xgboost', '{"n_estimators": [10, 50, 100, 200]}'),
     # ('resnet18', 'resnet18', ''),
-    ('resnet18-pretrained', 'resnet18-pretrained', ''),
+    # ('resnet18-pretrained', 'resnet18-pretrained', ''),
     # ('resnet50', 'resnet50', ''),
     # ('resnet50-pretrained', 'resnet50-pretrained', ''),
     # ('resnet152', 'resnet152', ''),
     # ('resnet152-pretrained', 'resnet152-pretrained', ''),
-    # ('aves', 'aves', '../models/aves-base-bio.pt')
+    ('aves', 'aves', '../aves-base-bio.pt')
     # ('vggish', 'vggish', ''),
 ]
 
@@ -59,8 +59,8 @@ for model_name, model_type, model_params in MODELS:
                 '--task', "all",
                 '--dataset', "all",
                 '--model-type', model_type,
-                '--batch-size', '32',
-                '--epochs', '35',
+                '--batch-size', '8',
+                '--epochs', '10',
                 '--lrs', '[1e-5, 5e-5, 1e-4]',
                 '--log-path', log_path,
                 '--num-workers', '1',
