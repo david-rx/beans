@@ -3,6 +3,7 @@ import torch
 
 TASKS = [
     ('classification', 'watkins'),
+    ('classification', 'fsd50k'),
     ('classification', 'bats'),
     ('classification', 'dogs'),
     ('classification', 'cbi'),

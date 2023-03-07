@@ -22,6 +22,7 @@ MODELS = [
 ]
 
 TASKS = [
+    ('classification', 'fsd50k'),
     ('classification', 'watkins'),
     ('classification', 'bats'),
     ('classification', 'dogs'),
@@ -34,7 +35,7 @@ TASKS = [
     ('detection', 'rfcx'),
     ('classification', 'esc50'),
     ('classification', 'speech-commands'),
-]
+] #not used!!
 
 for model_name, model_type, model_params in MODELS:
     print(f'Running multitask:: - {model_name}', file=sys.stderr)
