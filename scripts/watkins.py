@@ -3,7 +3,7 @@ from sklearn.model_selection import train_test_split
 from plumbum import local, FG
 
 local['wget']['https://archive.org/download/watkins_202104/watkins.zip', '-P', 'data'] & FG
-local['unzip']['data/watkins.zip', '-d', 'data/watkins/'] & FG
+local['unzip']['data/watkins.zip.2', '-d', 'data/watkins/'] & FG
 
 df = pd.read_csv('data/watkins/annotations.csv')
 df = df.apply(lambda r: pd.Series({'path': f"data/watkins/{r['path']}", 'label': r['species']}), axis=1)

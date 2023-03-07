@@ -160,6 +160,8 @@ def train_pytorch_model(
     valid_metric_best = 0.
     best_model = None
 
+    frozen_epochs = 1
+
     for lr in lrs:
         print(f"lr = {lr}" , file=log_file)
 
@@ -181,16 +183,29 @@ def train_pytorch_model(
                 multi_label=(args.task=='detection')
                 ).to(device)
 
-        optimizer = optim.Adam(params=model.parameters(), lr=lr)
+        
 
         task_head_dict = {}
         train_metric_dict = {}
+
+
 
         for epoch in range(args.epochs):
             task_sampler_train.reset_iterator_dict()
             print(f'epoch = {epoch}', file=sys.stderr)
 
             model.train()
+
+            if epoch <= frozen_epochs:
+                for p in model.parameters():
+                    p.requires_grad = False
+                model.linear.requires_grad = True
+            else:
+                for p in model.parameters():
+                    p.requires_grad = True
+
+            optimizer = optim.Adam(params=[p for p in model.parameters() if p.requires_grad], lr=lr)
+
 
             train_loss = 0.
             train_steps = 0
