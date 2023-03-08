@@ -5,7 +5,7 @@ import itertools
 import random
 import sys
 import yaml
-from beans.multitask import get_metric_factory, save_model_dict, switch_head, switch_loss, switch_metric, TASKS
+from beans.multitask import get_metric_factory, get_optimizer, save_model_dict, switch_head, switch_loss, switch_metric, TASKS
 from beans.sampling import ProportionalMultiTaskSampler
 
 from sklearn import preprocessing
@@ -188,7 +188,7 @@ def train_pytorch_model(
         task_head_dict = {}
         train_metric_dict = {}
 
-        optimizer = get_optimizer(model, task_head_dict, num_labels_dict)
+        optimizer = get_optimizer(model, task_head_dict, num_labels_dict=num_labels_dict, lr=lr)
 
 
 
@@ -329,8 +329,8 @@ def main():
     else:
         log_file = sys.stderr
 
-    device = torch.device('cuda:0')
-    # device = torch.device("mps")
+    # device = torch.device('cuda:0')
+    device = torch.device("mps")
 
 
     if args.model_type == 'vggish':

@@ -52,7 +52,7 @@ def switch_loss(task_name, model):
 
 def init_model_head_for_task(model, num_labels):
     in_features = model.linear.in_features
-    return torch.nn.Linear(in_features=in_features, out_features=num_labels).to("cuda")
+    return torch.nn.Linear(in_features=in_features, out_features=num_labels).to("mps")
 
 def switch_head(task_name, model, task_head_dict, num_labels):
     """
@@ -73,11 +73,12 @@ def load_model_for_task(model, task_name, sufix):
     model.load_state_dict(torch.load(MODEL_DIR + task_name + sufix))
 
 
-def get_optimizer(model, task_head_dict, num_labels_dict):
+def get_optimizer(model, task_head_dict, num_labels_dict, lr):
     all_parameters = list(model.parameters())
-    for task_name in TASKS:
+    for task_tuple in TASKS:
+        task_name = task_tuple[1]
         if task_name not in task_head_dict:
             switch_head(task_name, model, task_head_dict, num_labels_dict[task_name])
-        all_parameters.append(list(task_head_dict[task_name].parameters()))
+        all_parameters += list(task_head_dict[task_name].parameters())
     optimizer = optim.Adam(params=all_parameters, lr=lr)
     return optimizer

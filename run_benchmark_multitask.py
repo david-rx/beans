@@ -12,12 +12,12 @@ MODELS = [
     # ('gbdt', 'gbdt', '{"n_estimators": [10, 50, 100, 200]}'),
     # ('xgboost', 'xgboost', '{"n_estimators": [10, 50, 100, 200]}'),
     # ('resnet18', 'resnet18', ''),
-    # ('resnet18-pretrained', 'resnet18-pretrained', ''),
+    ('resnet18-pretrained', 'resnet18-pretrained', ''),
     # ('resnet50', 'resnet50', ''),
     # ('resnet50-pretrained', 'resnet50-pretrained', ''),
     # ('resnet152', 'resnet152', ''),
     # ('resnet152-pretrained', 'resnet152-pretrained', ''),
-    ('aves', 'aves', '../aves-base-bio.pt')
+    # ('aves', 'aves', '../aves-base-bio.pt')
     # ('vggish', 'vggish', ''),
 ]
 
