@@ -1,5 +1,10 @@
 # BEANS: The Benchmark of Animal Sounds
 
+
+---- David's FORK ----
+
+This fork includes work on multitask learning and metric learning to create a new bioacoustic model evaluated on BEANS.
+
 ![](./fig_beans.png)
 
 BEANS (the BEnchmark of ANimal Sounds) is a collection of bioacoustics tasks and public datasets, specifically designed to measure the performance of machine learning algorithms in the field of bioacoustics. The benchmark proposed here consists of two common tasks in bioacoustics: classification and detection. It includes 12 datasets covering various species, including birds, land and marine mammals, anurans, and insects. See [our paper](https://arxiv.org/abs/2210.12300) for more details.
