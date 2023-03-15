@@ -12,16 +12,17 @@ MODELS = [
     # ('gbdt', 'gbdt', '{"n_estimators": [10, 50, 100, 200]}'),
     # ('xgboost', 'xgboost', '{"n_estimators": [10, 50, 100, 200]}'),
     # ('resnet18', 'resnet18', ''),
-    ('resnet18-pretrained', 'resnet18-pretrained', ''),
+    # ('resnet18-pretrained', 'resnet18-pretrained', ''),
     # ('resnet50', 'resnet50', ''),
     # ('resnet50-pretrained', 'resnet50-pretrained', ''),
     # ('resnet152', 'resnet152', ''),
-    # ('resnet152-pretrained', 'resnet152-pretrained', ''),
-    # ('aves', 'aves', '../models/aves-base-bio.pt')
+    ('resnet152-pretrained', 'resnet152-pretrained', ''),
+    # ('aves', 'aves', '../aves-base-bio.pt')
     # ('vggish', 'vggish', ''),
 ]
 
 TASKS = [
+    ('classification', 'fsd50k'),
     ('classification', 'watkins'),
     ('classification', 'bats'),
     ('classification', 'dogs'),
@@ -34,7 +35,7 @@ TASKS = [
     ('detection', 'rfcx'),
     ('classification', 'esc50'),
     ('classification', 'speech-commands'),
-]
+] #not used!!
 
 for model_name, model_type, model_params in MODELS:
     print(f'Running multitask:: - {model_name}', file=sys.stderr)
@@ -59,7 +60,7 @@ for model_name, model_type, model_params in MODELS:
                 '--dataset', "all",
                 '--model-type', model_type,
                 '--batch-size', '32',
-                '--epochs', '35',
+                '--epochs', '10',
                 '--lrs', '[1e-5, 5e-5, 1e-4]',
                 '--log-path', log_path,
                 '--num-workers', '1',

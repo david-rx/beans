@@ -180,8 +180,7 @@ class ClassificationDataset(Dataset):
         else:
             assert False
 
-        return (x, self.ys[idx])
-
+        return (x, self.ys[idx])    
 
 class RecognitionDataset(Dataset):
     def __init__(
@@ -194,8 +193,16 @@ class RecognitionDataset(Dataset):
         max_duration,
         window_width,
         window_shift,
-        feature_type):
+        feature_type,
+        training = False,
+        augmentation_factor = 0.0
 
+        ):
+
+        self.training = training
+        self.augmentation_factor = augmentation_factor
+        self.original_length = len(self.xs)
+        self.total_length = self.original_length * (1 + augmentation_factor)
         label_to_id = {lbl: i for i, lbl in enumerate(labels)}
         self.sample_rate = sample_rate
         self.max_duration = max_duration
@@ -247,10 +254,7 @@ class RecognitionDataset(Dataset):
 
                     self.ys.append(y)
 
-    def __len__(self):
-        return len(self.xs)
-
-    def __getitem__(self, idx):
+    def _get_original_example(self, idx):
         wav_path, offset_st, offset_ed = self.xs[idx]
         if self.feature_type == 'waveform':
             x = _get_waveform(
@@ -281,3 +285,38 @@ class RecognitionDataset(Dataset):
             x = x[:, offset_st:offset_ed]
 
         return x, self.ys[idx]
+
+    def _get_augmented_example(self, idx):
+        # Get the original example
+        x, y = self._get_original_example(idx)
+
+        # Apply SpecAugment for applicable feature types
+        if self.feature_type in {'vggish', 'melspectrogram', 'mfcc'} and self.training:
+            x = spec_augment(x)
+
+        # Apply MixUp during training
+        if self.training:
+            # Select a random sample index
+            mixup_idx = random.randint(0, self.original_length - 1)
+            # Get the random sample
+            x_mixup, y_mixup = self._get_original_example(mixup_idx)
+
+            # Generate a random weight between 0 and 1
+            mixup_weight = random.random()
+
+            # Combine the two samples using the random weight
+            x = x * mixup_weight + x_mixup * (1 - mixup_weight)
+            y = y * mixup_weight + y_mixup * (1 - mixup_weight)
+
+        return x, y
+
+    def __len__(self):
+        return len(self.total_length)
+
+    def __getitem__(self, idx):
+        if idx < self.original_length:
+            return self._get_original_example(idx)
+
+        # If the index corresponds to an augmented example, generate the augmented example on-the-fly
+        augmented_idx = idx - self.original_length
+        return self._get_augmented_example(augmented_idx)

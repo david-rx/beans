@@ -5,7 +5,7 @@ import itertools
 import random
 import sys
 import yaml
-from beans.multitask import load_model_for_task
+from beans.multitask import load_model_for_task, load_resnet_base
 
 from sklearn import preprocessing
 from sklearn.ensemble import GradientBoostingClassifier
@@ -189,7 +189,8 @@ def train_pytorch_model(
                 
 
         optimizer = optim.Adam(params=model.parameters(), lr=lr)
-        load_model_for_task(model=model, task_name=args.dataset, sufix=f"{model.__class__.__name__}{str(lr)}")
+        # load_model_for_task(model=model, task_name=args.dataset, sufix=f"{model.__class__.__name__}{str(lr)}")
+        load_resnet_base(model=model, saved_model_name="multitask_metric_learning__reloaded_epoch_14_bs_128")
 
         for epoch in range(args.epochs):
             print(f'epoch = {epoch}', file=sys.stderr)

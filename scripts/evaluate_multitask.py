@@ -5,7 +5,7 @@ import itertools
 import random
 import sys
 import yaml
-from beans.multitask import get_metric_factory, save_model_dict, switch_head, switch_loss, switch_metric, TASKS
+from beans.multitask import get_metric_factory, get_optimizer, save_model_dict, switch_head, switch_loss, switch_metric, TASKS
 from beans.sampling import ProportionalMultiTaskSampler
 
 from sklearn import preprocessing
@@ -31,6 +31,120 @@ def read_datasets(path):
         datasets = yaml.safe_load(f)
 
     return {d['name']: d for d in datasets}
+
+def load_multitask_dataset(datasets, feature_type, batch_size, num_workers = 1, stop_shuffle = False):
+    dataloader_dict_train = {}
+    dataloader_dict_val = {}
+    dataloader_dict_test = {}
+    num_labels_dict = {}
+    task_to_num_examples_train = {}
+
+    ban_list = []
+
+    for dataset_name in datasets.keys():
+
+        if dataset_name in ban_list:
+            continue
+
+
+        dataset = datasets[dataset_name]
+        num_labels = dataset['num_labels']
+
+        if dataset['type'] == 'classification':
+            dataset_train = ClassificationDataset(
+                metadata_path=dataset['train_data'],
+                num_labels=num_labels,
+                labels=dataset['labels'],
+                unknown_label=dataset['unknown_label'],
+                sample_rate=dataset['sample_rate'],
+                max_duration=dataset['max_duration'],
+                feature_type=feature_type)
+            dataset_valid = ClassificationDataset(
+                metadata_path=dataset['valid_data'],
+                num_labels=num_labels,
+                labels=dataset['labels'],
+                unknown_label=dataset['unknown_label'],
+                sample_rate=dataset['sample_rate'],
+                max_duration=dataset['max_duration'],
+                feature_type=feature_type)
+            dataset_test = ClassificationDataset(
+                metadata_path=dataset['test_data'],
+                num_labels=num_labels,
+                labels=dataset['labels'],
+                unknown_label=dataset['unknown_label'],
+                sample_rate=dataset['sample_rate'],
+                max_duration=dataset['max_duration'],
+                feature_type=feature_type)
+
+        elif dataset['type'] == 'detection':
+            dataset_train = RecognitionDataset(
+                metadata_path=dataset['train_data'],
+                num_labels=num_labels,
+                labels=dataset['labels'],
+                unknown_label=dataset['unknown_label'],
+                sample_rate=dataset['sample_rate'],
+                max_duration=60,
+                window_width=dataset['window_width'],
+                window_shift=dataset['window_shift'],
+                feature_type=feature_type)
+            dataset_valid = RecognitionDataset(
+                metadata_path=dataset['valid_data'],
+                num_labels=num_labels,
+                labels=dataset['labels'],
+                unknown_label=dataset['unknown_label'],
+                sample_rate=dataset['sample_rate'],
+                max_duration=60,
+                window_width=dataset['window_width'],
+                window_shift=dataset['window_shift'],
+                feature_type=feature_type)
+            dataset_test = RecognitionDataset(
+                metadata_path=dataset['test_data'],
+                num_labels=num_labels,
+                labels=dataset['labels'],
+                unknown_label=dataset['unknown_label'],
+                sample_rate=dataset['sample_rate'],
+                max_duration=60,
+                window_width=dataset['window_width'],
+                window_shift=dataset['window_shift'],
+                feature_type=feature_type)
+        else:
+            raise ValueError(f"Invalid dataset type: {dataset['type']}")
+
+
+        dataloader_train = DataLoader(
+            dataset=dataset_train,
+            batch_size=batch_size,
+            shuffle=not stop_shuffle,
+            num_workers=num_workers,
+            pin_memory=True,
+            persistent_workers=True)
+        dataloader_valid = DataLoader(
+            dataset=dataset_valid,
+            batch_size=batch_size,
+            shuffle=False,
+            num_workers=num_workers,
+            pin_memory=True,
+            persistent_workers=True)
+        if dataset_test is not None:
+            dataloader_test = DataLoader(
+                dataset=dataset_test,
+                batch_size=batch_size,
+                shuffle=False,
+                num_workers=num_workers,
+                pin_memory=True,
+                persistent_workers=True)
+        else:
+            dataloader_test = None
+        
+        task_to_num_examples_train[dataset_name] = len(dataloader_train)
+        dataloader_dict_train[dataset_name] = dataloader_train
+        dataloader_dict_val[dataset_name] = dataloader_valid
+        dataloader_dict_test[dataset_name] = dataloader_test
+        num_labels_dict[dataset_name] = num_labels
+
+    task_sampler_train = ProportionalMultiTaskSampler(task_dict=dataloader_dict_train, rng=13,
+        task_to_num_examples_dict=task_to_num_examples_train)
+    return task_sampler_train
 
 
 def spec2feats(spec):
@@ -160,6 +274,8 @@ def train_pytorch_model(
     valid_metric_best = 0.
     best_model = None
 
+    frozen_epochs = 1
+
     for lr in lrs:
         print(f"lr = {lr}" , file=log_file)
 
@@ -181,16 +297,34 @@ def train_pytorch_model(
                 multi_label=(args.task=='detection')
                 ).to(device)
 
-        optimizer = optim.Adam(params=model.parameters(), lr=lr)
+        
 
         task_head_dict = {}
         train_metric_dict = {}
+
+        optimizer = get_optimizer(model, task_head_dict, num_labels_dict=num_labels_dict, lr=lr)
+
+
 
         for epoch in range(args.epochs):
             task_sampler_train.reset_iterator_dict()
             print(f'epoch = {epoch}', file=sys.stderr)
 
             model.train()
+
+            # if epoch <= frozen_epochs:
+            #     for name, p in model.named_parameters():
+            #         p.requires_grad = False
+            #         print("p.name", name)
+            #     model.linear.requires_grad = True
+            #     print("linear", model.linear)
+
+            # else:
+            #     for p in model.parameters():
+            #         p.requires_grad = True
+
+                
+
 
             train_loss = 0.
             train_steps = 0
@@ -202,6 +336,7 @@ def train_pytorch_model(
                 num_labels = num_labels_dict[task_name]
                 switch_head(task_name=task_name, model=model, num_labels=num_labels, task_head_dict=task_head_dict)
                 switch_loss(model=model, task_name=task_name)
+                # optimizer = optim.Adam(params=[p for p in model.parameters() if p.requires_grad], lr=lr)
                 train_metric = switch_metric(task_name=task_name, metric_dict=train_metric_dict)
                 try:
                     x, y = next(task_dataloader)
@@ -283,7 +418,7 @@ def main():
     datasets = read_datasets('datasets.yml')
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--batch-size', type=int, default=32)
+    parser.add_argument('--batch-size', type=int, default=8)
     parser.add_argument('--epochs', type=int, default=30)
     parser.add_argument('--lrs', type=str)
     parser.add_argument('--params', type=str)

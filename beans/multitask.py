@@ -1,8 +1,10 @@
 from beans.metrics import Accuracy, MeanAveragePrecision
 import torch
+import torch.optim as optim
 
 TASKS = [
     ('classification', 'watkins'),
+    ('classification', 'fsd50k'),
     ('classification', 'bats'),
     ('classification', 'dogs'),
     ('classification', 'cbi'),
@@ -69,3 +71,19 @@ def save_model_dict(model_dict, suffix):
 
 def load_model_for_task(model, task_name, sufix):
     model.load_state_dict(torch.load(MODEL_DIR + task_name + sufix))
+
+def load_resnet_base(model, saved_model_name):
+    model_dict = torch.load(MODEL_DIR + saved_model_name)
+    model_dict["linear.weight"] = model.linear.weight
+    model_dict["linear.bias"] = model.linear.bias
+    model.load_state_dict(model_dict)
+
+def get_optimizer(model, task_head_dict, num_labels_dict, lr):
+    all_parameters = list(model.parameters())
+    for task_tuple in TASKS:
+        task_name = task_tuple[1]
+        if task_name not in task_head_dict:
+            switch_head(task_name, model, task_head_dict, num_labels_dict[task_name])
+        all_parameters += list(task_head_dict[task_name].parameters())
+    optimizer = optim.Adam(params=all_parameters, lr=lr)
+    return optimizer

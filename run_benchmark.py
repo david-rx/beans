@@ -57,8 +57,8 @@ for model_name, model_type, model_params in MODELS:
                     '--dataset', dataset,
                     '--model-type', model_type,
                     '--batch-size', '32',
-                    '--epochs', '30',
-                    '--lrs', '[1e-5]', # 5e-5, 1e-4
+                    '--epochs', '50',
+                    '--lrs', '[1e-5, 5e-5, 1e-4]', # 5e-5, 1e-4
                     '--log-path', log_path,
                     '--num-workers', '1',
                     "--model-path", ""
