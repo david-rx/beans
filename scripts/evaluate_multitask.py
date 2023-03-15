@@ -32,6 +32,120 @@ def read_datasets(path):
 
     return {d['name']: d for d in datasets}
 
+def load_multitask_dataset(datasets, feature_type, batch_size, num_workers = 1, stop_shuffle = False):
+    dataloader_dict_train = {}
+    dataloader_dict_val = {}
+    dataloader_dict_test = {}
+    num_labels_dict = {}
+    task_to_num_examples_train = {}
+
+    ban_list = []
+
+    for dataset_name in datasets.keys():
+
+        if dataset_name in ban_list:
+            continue
+
+
+        dataset = datasets[dataset_name]
+        num_labels = dataset['num_labels']
+
+        if dataset['type'] == 'classification':
+            dataset_train = ClassificationDataset(
+                metadata_path=dataset['train_data'],
+                num_labels=num_labels,
+                labels=dataset['labels'],
+                unknown_label=dataset['unknown_label'],
+                sample_rate=dataset['sample_rate'],
+                max_duration=dataset['max_duration'],
+                feature_type=feature_type)
+            dataset_valid = ClassificationDataset(
+                metadata_path=dataset['valid_data'],
+                num_labels=num_labels,
+                labels=dataset['labels'],
+                unknown_label=dataset['unknown_label'],
+                sample_rate=dataset['sample_rate'],
+                max_duration=dataset['max_duration'],
+                feature_type=feature_type)
+            dataset_test = ClassificationDataset(
+                metadata_path=dataset['test_data'],
+                num_labels=num_labels,
+                labels=dataset['labels'],
+                unknown_label=dataset['unknown_label'],
+                sample_rate=dataset['sample_rate'],
+                max_duration=dataset['max_duration'],
+                feature_type=feature_type)
+
+        elif dataset['type'] == 'detection':
+            dataset_train = RecognitionDataset(
+                metadata_path=dataset['train_data'],
+                num_labels=num_labels,
+                labels=dataset['labels'],
+                unknown_label=dataset['unknown_label'],
+                sample_rate=dataset['sample_rate'],
+                max_duration=60,
+                window_width=dataset['window_width'],
+                window_shift=dataset['window_shift'],
+                feature_type=feature_type)
+            dataset_valid = RecognitionDataset(
+                metadata_path=dataset['valid_data'],
+                num_labels=num_labels,
+                labels=dataset['labels'],
+                unknown_label=dataset['unknown_label'],
+                sample_rate=dataset['sample_rate'],
+                max_duration=60,
+                window_width=dataset['window_width'],
+                window_shift=dataset['window_shift'],
+                feature_type=feature_type)
+            dataset_test = RecognitionDataset(
+                metadata_path=dataset['test_data'],
+                num_labels=num_labels,
+                labels=dataset['labels'],
+                unknown_label=dataset['unknown_label'],
+                sample_rate=dataset['sample_rate'],
+                max_duration=60,
+                window_width=dataset['window_width'],
+                window_shift=dataset['window_shift'],
+                feature_type=feature_type)
+        else:
+            raise ValueError(f"Invalid dataset type: {dataset['type']}")
+
+
+        dataloader_train = DataLoader(
+            dataset=dataset_train,
+            batch_size=batch_size,
+            shuffle=not stop_shuffle,
+            num_workers=num_workers,
+            pin_memory=True,
+            persistent_workers=True)
+        dataloader_valid = DataLoader(
+            dataset=dataset_valid,
+            batch_size=batch_size,
+            shuffle=False,
+            num_workers=num_workers,
+            pin_memory=True,
+            persistent_workers=True)
+        if dataset_test is not None:
+            dataloader_test = DataLoader(
+                dataset=dataset_test,
+                batch_size=batch_size,
+                shuffle=False,
+                num_workers=num_workers,
+                pin_memory=True,
+                persistent_workers=True)
+        else:
+            dataloader_test = None
+        
+        task_to_num_examples_train[dataset_name] = len(dataloader_train)
+        dataloader_dict_train[dataset_name] = dataloader_train
+        dataloader_dict_val[dataset_name] = dataloader_valid
+        dataloader_dict_test[dataset_name] = dataloader_test
+        num_labels_dict[dataset_name] = num_labels
+
+    task_sampler_train = ProportionalMultiTaskSampler(task_dict=dataloader_dict_train, rng=13,
+        task_to_num_examples_dict=task_to_num_examples_train)
+    return task_sampler_train
+
 
 def spec2feats(spec):
     spec = torch.cat([
