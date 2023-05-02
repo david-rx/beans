@@ -22,18 +22,29 @@ MODELS = [
 ]
 
 TASKS = [
-    ('classification', 'watkins'),
-    ('classification', 'bats'),
-    ('classification', 'dogs'),
-    ('classification', 'cbi'),
-    ('classification', 'humbugdb'),
-    ('detection', 'dcase'),
-    ('detection', 'enabirds'),
-    ('detection', 'hiceas'),
-    ('detection', 'hainan-gibbons'),
-    ('detection', 'rfcx'),
-    ('classification', 'esc50'),
-    ('classification', 'speech-commands'),
+    ('classification', 'urbansound8k-1'),
+    ('classification', 'urbansound8k-2'),
+    ('classification', 'urbansound8k-3'),
+    ('classification', 'urbansound8k-4'),
+    ('classification', 'urbansound8k-5'),
+    ('classification', 'urbansound8k-6'),
+    ('classification', 'urbansound8k-7'),
+    ('classification', 'urbansound8k-8'),
+    ('classification', 'urbansound8k-9'),
+    ('classification', 'urbansound8k-10'),
+    # ('classification', 'watkins'),
+    # ('classification', 'bats'),
+    # ('classification', 'dogs'),
+    # ('classification', 'cbi'),
+    # ('classification', 'humbugdb'),
+    # ('detection', 'dcase'),
+    # ('detection', 'enabirds'),
+    # ('detection', 'hiceas'),
+    # ('detection', 'hainan-gibbons'),
+    # ('detection', 'dcase'),
+    # ('detection', 'rfcx'),
+    # ('classification', 'esc50'),
+    # ('classification', 'speech-commands'),
 ]
 
 for model_name, model_type, model_params in MODELS:
@@ -57,8 +68,8 @@ for model_name, model_type, model_params in MODELS:
                     '--dataset', dataset,
                     '--model-type', model_type,
                     '--batch-size', '32',
-                    '--epochs', '50',
-                    '--lrs', '[1e-5, 5e-5, 1e-4]', # 5e-5, 1e-4
+                    '--epochs', '20',
+                    '--lrs', '[5e-5]', # 5e-5, 1e-4
                     '--log-path', log_path,
                     '--num-workers', '1',
                     "--model-path", ""

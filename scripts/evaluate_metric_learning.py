@@ -5,7 +5,7 @@ import itertools
 import random
 import sys
 import yaml
-from beans.multitask import load_model_for_task, load_resnet_base
+from beans.multitask import load_model_for_task
 
 from sklearn import preprocessing
 from sklearn.ensemble import GradientBoostingClassifier
@@ -78,7 +78,6 @@ def train_sklearn_model(args, dataloader_train, dataloader_valid, num_labels, me
     param_combinations = itertools.product(*param_list)
 
     valid_metric_best = 0.
-    train_loss_metric_best = 1000
     best_model = None
 
     for extra_params in param_combinations:
@@ -158,7 +157,6 @@ def train_pytorch_model(
     assert isinstance(lrs, list)
 
     valid_metric_best = 0.
-    train_loss_metric_best = 1000
     best_model = None
 
     for lr in lrs:
@@ -191,8 +189,7 @@ def train_pytorch_model(
                 
 
         optimizer = optim.Adam(params=model.parameters(), lr=lr)
-        # load_model_for_task(model=model, task_name=args.dataset, sufix=f"{model.__class__.__name__}1e-05")
-        # load_resnet_base(model=model, saved_model_name="multitask_metric_learning__reloaded_epoch_14_bs_128")
+        load_model_for_task(model=model, task_name=args.dataset, sufix=f"{model.__class__.__name__}{str(lr)}")
 
         for epoch in range(args.epochs):
             print(f'epoch = {epoch}', file=sys.stderr)
@@ -227,14 +224,8 @@ def train_pytorch_model(
                 device=device,
                 desc='valid')
 
-            # if valid_metric > valid_metric_best:
-            #     valid_metric_best = valid_metric
-            #     best_model = copy.deepcopy(model)
-
-            #TODO: changed!! doing early stopping on train loss D:
-            train_loss_metric = train_loss / train_steps
-            if train_loss_metric < train_loss_metric_best:
-                train_loss_metric_best = train_loss_metric
+            if valid_metric > valid_metric_best:
+                valid_metric_best = valid_metric
                 best_model = copy.deepcopy(model)
 
             print({
@@ -330,9 +321,7 @@ def main():
             max_duration=60,
             window_width=dataset['window_width'],
             window_shift=dataset['window_shift'],
-            feature_type=feature_type,
-            # detection_percentage=0.3
-        )
+            feature_type=feature_type)
         dataset_valid = RecognitionDataset(
             metadata_path=dataset['valid_data'],
             num_labels=num_labels,

@@ -8,10 +8,29 @@ import torch.nn.functional as F
 from torch.utils.data import Dataset
 import torchaudio
 from beans.torchvggish import vggish_input
+import random
+import numpy as np
 
 FFT_SIZE_IN_SECS = 0.05
 HOP_LENGTH_IN_SECS = 0.01
 
+def spec_augment(spec, F=30, T=40, num_freq_masks=2, num_time_masks=2):
+    spec = spec.copy()
+    num_mel_channels, num_time_frames = spec.shape
+
+    # Apply frequency masks
+    for _ in range(num_freq_masks):
+        f = np.random.randint(0, F)
+        f0 = np.random.randint(0, num_mel_channels - f)
+        spec[f0:f0 + f, :] = 0
+
+    # Apply time masks
+    for _ in range(num_time_masks):
+        t = np.random.randint(0, T)
+        t0 = np.random.randint(0, num_time_frames - t)
+        spec[:, t0:t0 + t] = 0
+
+    return spec
 
 @cached(thread_safe=False, max_size=100_000)
 def _get_spectrogram(filename, max_duration, target_sample_rate, return_mfcc=False):
@@ -195,14 +214,11 @@ class RecognitionDataset(Dataset):
         window_shift,
         feature_type,
         training = False,
-        augmentation_factor = 0.0
-
+        augmentation_factor = 0.0,
+        detection_percentage = None
         ):
 
-        self.training = training
-        self.augmentation_factor = augmentation_factor
-        self.original_length = len(self.xs)
-        self.total_length = self.original_length * (1 + augmentation_factor)
+        
         label_to_id = {lbl: i for i, lbl in enumerate(labels)}
         self.sample_rate = sample_rate
         self.max_duration = max_duration
@@ -253,6 +269,46 @@ class RecognitionDataset(Dataset):
                             y[label_id] = 1
 
                     self.ys.append(y)
+        
+
+        if detection_percentage is not None:
+            self._filter_examples_by_detection_percentage(detection_percentage)
+
+        self.ones_count = len([y for y in self.ys if len([yi for yi in y if yi == 1 ]) != 0])
+        self.total = len(self.ys)
+
+        self.training = training
+        self.augmentation_factor = augmentation_factor
+        self.original_length = len(self.xs)
+        self.total_length = int(self.original_length * (1 + augmentation_factor))
+
+    def _filter_examples_by_detection_percentage(self, detection_percentage):
+        # Get the indices of examples with detections and without detections
+        detection_indices = [i for i, y in enumerate(self.ys) if y.sum() > 0]
+        no_detection_indices = [i for i, y in enumerate(self.ys) if y.sum() == 0]            
+
+        # Calculate the number of examples without detections needed to achieve the desired percentage
+        num_no_detections_needed = int(len(detection_indices) / detection_percentage) - len(detection_indices)
+        current_detection_percentage = len(detection_indices) / len(self.ys)
+        if detection_percentage < current_detection_percentage:
+            return
+
+        # Randomly select the desired number of examples without detections
+        selected_no_detection_indices = np.random.choice(no_detection_indices, num_no_detections_needed, replace=False)
+
+        # Update the dataset with the selected examples without detections and all the examples with detections
+        self.xs = [self.xs[i] for i in detection_indices + selected_no_detection_indices.tolist()]
+        self.ys = [self.ys[i] for i in detection_indices + selected_no_detection_indices.tolist()]
+        # self.original_length = len(self.xs)
+        # self.total_length = self.original_length * (1 + self.augmentation_factor)
+
+        #check
+        detection_indices = [i for i, y in enumerate(self.ys) if y.sum() > 0]
+        no_detection_indices = [i for i, y in enumerate(self.ys) if y.sum() == 0]   
+        current_detection_percentage = len(detection_indices) / len(self.ys)
+
+        print(f"new detection percentage is {current_detection_percentage}")
+
 
     def _get_original_example(self, idx):
         wav_path, offset_st, offset_ed = self.xs[idx]
@@ -311,7 +367,7 @@ class RecognitionDataset(Dataset):
         return x, y
 
     def __len__(self):
-        return len(self.total_length)
+        return self.total_length
 
     def __getitem__(self, idx):
         if idx < self.original_length:
