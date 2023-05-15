@@ -39,7 +39,11 @@ for fold in range(1, 11):
         
         label = row["class"]
 
-        tgt_file = Path(f'data/urban_sound_8k/wav/fold{row["fold"]}') / (Path(str(row['slice_file_name'])).stem + '.wav')
+        curr_path = row["slice_file_name"]
+        if "AudioAug" in curr_path:
+            tgt_file = curr_path
+        else:
+            tgt_file = Path(f'data/urban_sound_8k/wav/fold{row["fold"]}') / (Path(str(row['slice_file_name'])).stem + '.wav')
         new_row = pd.Series({
             'path': tgt_file,
             'label': label,

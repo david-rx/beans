@@ -21,7 +21,7 @@ from tqdm import tqdm
 from xgboost import XGBClassifier
 
 from beans.metrics import Accuracy, MeanAveragePrecision
-from beans.models import AvesClassifier, ResNetClassifier, VGGishClassifier
+from beans.models import AvesClassifier, CLAPClassifier, ResNetClassifier, VGGishClassifier
 from beans.datasets import ClassificationDataset, RecognitionDataset
 
 
@@ -114,7 +114,7 @@ def train_sklearn_model(args, dataloader_train, dataloader_valid, num_labels, me
         print({
             'extra_params': extra_params,
             'valid': {
-                'metric': valid_metric
+                'metric': valid_metrice
             }}, file=log_file)
 
     return (best_model, scaler), valid_metric_best
@@ -188,6 +188,11 @@ def train_pytorch_model(
                 num_classes=num_labels,
                 multi_label=(args.task=='detection')
                 ).to(device)
+        elif args.model_type == "clap":
+            model = CLAPClassifier(
+                model_path="laion/clap-htsat-unfused",
+                num_classes=num_labels
+            ).to(device)
                 
 
         optimizer = optim.Adam(params=model.parameters(), lr=lr)
@@ -213,7 +218,7 @@ def train_pytorch_model(
 
                 loss.backward()
 
-                optimizer.step()
+                optimizer.step()    
 
                 train_loss += loss.cpu()
                 train_steps += 1
@@ -227,15 +232,15 @@ def train_pytorch_model(
                 device=device,
                 desc='valid')
 
-            # if valid_metric > valid_metric_best:
-            #     valid_metric_best = valid_metric
-            #     best_model = copy.deepcopy(model)
+            if valid_metric > valid_metric_best:
+                valid_metric_best = valid_metric
+                best_model = copy.deepcopy(model)
 
             #TODO: changed!! doing early stopping on train loss D:
             train_loss_metric = train_loss / train_steps
-            if train_loss_metric < train_loss_metric_best:
-                train_loss_metric_best = train_loss_metric
-                best_model = copy.deepcopy(model)
+            # if train_loss_metric < train_loss_metric_best:
+            #     train_loss_metric_best = train_loss_metric
+            #     best_model = copy.deepcopy(model)
 
             print({
                 'epoch': epoch,
@@ -267,7 +272,7 @@ def main():
         'resnet18', 'resnet18-pretrained',
         'resnet50', 'resnet50-pretrained',
         'resnet152', 'resnet152-pretrained',
-        'vggish', 'aves'])
+        'vggish', 'aves', 'clap'])
     parser.add_argument('--dataset', choices=datasets.keys())
     parser.add_argument('--num-workers', type=int, default=4)
     parser.add_argument('--stop-shuffle', action='store_true')
@@ -283,15 +288,21 @@ def main():
         log_file = sys.stderr
 
     device = torch.device('mps')
-
+    target_sample_rate = None
     if args.model_type == 'vggish':
         feature_type = 'vggish'
+    elif args.model_type == "clap":
+        feature_type = "waveform"
+        target_sample_rate = 48000
     elif args.model_type.startswith('resnet'):
         feature_type = 'melspectrogram'
     else:
         feature_type = 'mfcc'
 
     dataset = datasets[args.dataset]
+    if target_sample_rate != None:
+        dataset["sample_rate"] = target_sample_rate
+
     num_labels = dataset['num_labels']
 
     if dataset['type'] == 'classification':

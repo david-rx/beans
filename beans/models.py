@@ -4,6 +4,8 @@ import torch
 import torch.nn as nn
 import torchvision
 from pytorch_metric_learning import miners, losses, distances
+from transformers import AutoProcessor, ClapModel, ClapAudioModelWithProjection
+
 
 class ResNetClassifier(nn.Module):
     def __init__(self, model_type, pretrained=False, num_classes=None, multi_label=False):
@@ -180,3 +182,21 @@ class ResNetMetricLearning(nn.Module):
             loss = self.loss(encodings, y, hard_pairs)
 
         return loss, encodings
+    
+class CLAPClassifier(nn.Module):
+    def __init__(self, model_path, num_classes) -> None:
+        super().__init__()
+        self.clap = ClapAudioModelWithProjection.from_pretrained(model_path, projection_dim=num_classes,
+                                                                ignore_mismatched_sizes=True)
+        self.processor = AutoProcessor.from_pretrained("laion/clap-htsat-unfused")
+        self.loss_func = nn.CrossEntropyLoss()
+
+    def forward(self, x, y=None):
+        x = [s.cpu().numpy() for s in x]
+        # print(x[0].shape)
+        inputs = self.processor(audios=x, return_tensors="pt", sampling_rate=48000).to("mps")
+        out = self.clap(**inputs).audio_embeds
+        loss = self.loss_func(out, y)
+        
+        return loss, out
+

@@ -12,6 +12,7 @@ MODELS = [
     # ('gbdt', 'gbdt', '{"n_estimators": [10, 50, 100, 200]}'),
     # ('xgboost', 'xgboost', '{"n_estimators": [10, 50, 100, 200]}'),
     # ('resnet18', 'resnet18', ''),
+    # ('clap', 'clap', ''),
     ('resnet18-pretrained', 'resnet18-pretrained', ''),
     # ('resnet50', 'resnet50', ''),
     # ('resnet50-pretrained', 'resnet50-pretrained', ''),
@@ -22,20 +23,20 @@ MODELS = [
 ]
 
 TASKS = [
-    ('classification', 'urbansound8k-1'),
-    ('classification', 'urbansound8k-2'),
-    ('classification', 'urbansound8k-3'),
-    ('classification', 'urbansound8k-4'),
-    ('classification', 'urbansound8k-5'),
-    ('classification', 'urbansound8k-6'),
-    ('classification', 'urbansound8k-7'),
-    ('classification', 'urbansound8k-8'),
-    ('classification', 'urbansound8k-9'),
-    ('classification', 'urbansound8k-10'),
+    # ('classification', 'urbansound8k-1'),
+    # ('classification', 'urbansound8k-2'),
+    # ('classification', 'urbansound8k-3'),
+    # ('classification', 'urbansound8k-4'),
+    # ('classification', 'urbansound8k-5'),
+    # ('classification', 'urbansound8k-6'),
+    # ('classification', 'urbansound8k-7'),
+    # ('classification', 'urbansound8k-8'),
+    # ('classification', 'urbansound8k-9'),
+    # ('classification', 'urbansound8k-10'),
     # ('classification', 'watkins'),
     # ('classification', 'bats'),
     # ('classification', 'dogs'),
-    # ('classification', 'cbi'),
+    ('classification', 'cbi'),
     # ('classification', 'humbugdb'),
     # ('detection', 'dcase'),
     # ('detection', 'enabirds'),
@@ -50,7 +51,7 @@ TASKS = [
 for model_name, model_type, model_params in MODELS:
     for task, dataset in TASKS:
         print(f'Running {dataset}-{model_name}', file=sys.stderr)
-        log_path = f'logs/{dataset}-{model_name}'
+        log_path = f'logs/{dataset}-{model_name}-og-plus-aug'
         try:
             if model_type in ['lr', 'svm', 'decisiontree', 'gbdt', 'xgboost']:
                 python[

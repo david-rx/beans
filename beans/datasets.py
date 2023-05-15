@@ -103,7 +103,7 @@ def _get_waveform(filename, max_duration, target_sample_rate):
 
 @cached(thread_safe=False, max_size=100_000)
 def _get_vggish_spectrogram(filename, max_duration, target_sample_rate=16_000):
-    assert target_sample_rate == 16_000
+    # assert target_sample_rate == 16_000
 
     waveform = _get_waveform(filename, max_duration, target_sample_rate).numpy()
     spec = vggish_input.waveform_to_examples(waveform, target_sample_rate, return_tensor=True)
@@ -183,6 +183,12 @@ class ClassificationDataset(Dataset):
             x = _get_vggish_spectrogram(
                 self.xs[idx],
                 max_duration=self.max_duration)
+        elif self.feature_type == "clap":
+            x = _get_vggish_spectrogram(
+                self.xs[idx],
+                max_duration=self.max_duration,
+                target_sample_rate=48000
+                )
 
         elif self.feature_type == 'melspectrogram':
             x = _get_spectrogram(
