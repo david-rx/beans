@@ -21,7 +21,7 @@ from tqdm import tqdm
 from xgboost import XGBClassifier
 
 from beans.metrics import Accuracy, MeanAveragePrecision
-from beans.models import AvesClassifier, CLAPClassifier, ResNetClassifier, VGGishClassifier
+from beans.models import AvesClassifier, CLAPClassifier, CLAPContrastiveClassifier, CLAPZeroShotClassifier, ResNetClassifier, VGGishClassifier
 from beans.datasets import ClassificationDataset, RecognitionDataset
 
 
@@ -130,7 +130,7 @@ def eval_pytorch_model(model, dataloader, metric_factory, device, desc):
             x = x.to(device)
             y = y.to(device)
 
-            loss, logits = model(x, y)
+            loss, logits = model(x, y) #training = False
             total_loss += loss.cpu().item()
             steps += 1
 
@@ -152,7 +152,9 @@ def train_pytorch_model(
     metric_factory,
     sample_rate,
     device,
-    log_file):
+    log_file,
+    human_labels,
+    negative_label = "other sounds"):
 
     lrs = ast.literal_eval(args.lrs)
     assert isinstance(lrs, list)
@@ -191,7 +193,21 @@ def train_pytorch_model(
         elif args.model_type == "clap":
             model = CLAPClassifier(
                 model_path="laion/clap-htsat-unfused",
-                num_classes=num_labels
+                num_classes=num_labels,
+                multi_label =(args.task=='detection')
+            ).to(device)
+        elif args.model_type == "zero-shot-clap":
+            model = CLAPZeroShotClassifier(
+                model_path="laion/clap-htsat-unfused",
+                labels=human_labels, #+ [negative_label]
+                multi_label=(args.task=='detection')
+            ).to(device)
+            return model, 0.0
+        elif args.model_type == "contrastive-clap":
+            model = CLAPContrastiveClassifier(
+                model_path="laion/clap-htsat-unfused",
+                labels=human_labels,
+                multi_label=(args.task=='detection')
             ).to(device)
                 
 
@@ -200,6 +216,7 @@ def train_pytorch_model(
         # load_resnet_base(model=model, saved_model_name="multitask_metric_learning__reloaded_epoch_14_bs_128")
 
         for epoch in range(args.epochs):
+            
             print(f'epoch = {epoch}', file=sys.stderr)
 
             model.train()
@@ -209,6 +226,7 @@ def train_pytorch_model(
             train_metric = metric_factory()
 
             for x, y in tqdm(dataloader_train, desc='train'):
+
                 optimizer.zero_grad()
 
                 x = x.to(device)
@@ -272,7 +290,7 @@ def main():
         'resnet18', 'resnet18-pretrained',
         'resnet50', 'resnet50-pretrained',
         'resnet152', 'resnet152-pretrained',
-        'vggish', 'aves', 'clap'])
+        'vggish', 'aves', 'clap', "zero-shot-clap", "contrastive-clap"])
     parser.add_argument('--dataset', choices=datasets.keys())
     parser.add_argument('--num-workers', type=int, default=4)
     parser.add_argument('--stop-shuffle', action='store_true')
@@ -291,7 +309,7 @@ def main():
     target_sample_rate = None
     if args.model_type == 'vggish':
         feature_type = 'vggish'
-    elif args.model_type == "clap":
+    elif args.model_type == "clap" or args.model_type == "zero-shot-clap" or args.model_type == "contrastive-clap":
         feature_type = "waveform"
         target_sample_rate = 48000
     elif args.model_type.startswith('resnet'):
@@ -304,6 +322,7 @@ def main():
         dataset["sample_rate"] = target_sample_rate
 
     num_labels = dataset['num_labels']
+    human_labels = dataset["human_labels"] if "human_labels" in dataset else dataset["labels"]
 
     if dataset['type'] == 'classification':
         dataset_train = ClassificationDataset(
@@ -422,7 +441,8 @@ def main():
             metric_factory=Metric,
             sample_rate=dataset.get('sample_rate', 16000),
             device=device,
-            log_file=log_file)
+            log_file=log_file,
+            human_labels=human_labels)
 
         if dataloader_test is not None:
             _, test_metric = eval_pytorch_model(

@@ -13,7 +13,9 @@ MODELS = [
     # ('xgboost', 'xgboost', '{"n_estimators": [10, 50, 100, 200]}'),
     # ('resnet18', 'resnet18', ''),
     # ('clap', 'clap', ''),
-    ('resnet18-pretrained', 'resnet18-pretrained', ''),
+    # ('resnet18-pretrained', 'resnet18-pretrained', ''),
+    # ('zero-shot-clap', 'zero-shot-clap', ''),
+    ("constrastive-clap", "contrastive-clap", ""),
     # ('resnet50', 'resnet50', ''),
     # ('resnet50-pretrained', 'resnet50-pretrained', ''),
     # ('resnet152', 'resnet152', ''),
@@ -36,10 +38,10 @@ TASKS = [
     # ('classification', 'watkins'),
     # ('classification', 'bats'),
     # ('classification', 'dogs'),
-    ('classification', 'cbi'),
+    # ('classification', 'cbi'),
     # ('classification', 'humbugdb'),
     # ('detection', 'dcase'),
-    # ('detection', 'enabirds'),
+    ('detection', 'enabirds'),
     # ('detection', 'hiceas'),
     # ('detection', 'hainan-gibbons'),
     # ('detection', 'dcase'),
@@ -51,7 +53,7 @@ TASKS = [
 for model_name, model_type, model_params in MODELS:
     for task, dataset in TASKS:
         print(f'Running {dataset}-{model_name}', file=sys.stderr)
-        log_path = f'logs/{dataset}-{model_name}-og-plus-aug'
+        log_path = f'logs/{dataset}-{model_name}'
         try:
             if model_type in ['lr', 'svm', 'decisiontree', 'gbdt', 'xgboost']:
                 python[
@@ -70,7 +72,7 @@ for model_name, model_type, model_params in MODELS:
                     '--model-type', model_type,
                     '--batch-size', '32',
                     '--epochs', '20',
-                    '--lrs', '[5e-5]', # 5e-5, 1e-4
+                    '--lrs', '[5e-5]',
                     '--log-path', log_path,
                     '--num-workers', '1',
                     "--model-path", ""
