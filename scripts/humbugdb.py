@@ -3,12 +3,12 @@ import pandas as pd
 from plumbum import local, FG
 from sklearn.model_selection import train_test_split
 
-local['git']['clone', 'https://github.com/HumBug-Mosquito/HumBugDB.git', 'data/HumBugDB'] & FG
+# local['git']['clone', 'https://github.com/HumBug-Mosquito/HumBugDB.git', 'data/HumBugDB'] & FG
 
-for i in [1, 2, 3, 4]:
-    local['wget']['-O', f'data/HumBugDB/humbugdb_neurips_2021_{i}.zip',
-                  f'https://zenodo.org/record/4904800/files/humbugdb_neurips_2021_{i}.zip?download=1'] & FG
-    local['unzip'][f'data/HumBugDB/humbugdb_neurips_2021_{i}.zip', '-d', 'data/HumBugDB/data/audio/'] & FG
+# for i in [1, 2, 3, 4]:
+#     local['wget']['-O', f'data/HumBugDB/humbugdb_neurips_2021_{i}.zip',
+#                   f'https://zenodo.org/record/4904800/files/humbugdb_neurips_2021_{i}.zip?download=1'] & FG
+#     local['unzip'][f'data/HumBugDB/humbugdb_neurips_2021_{i}.zip', '-d', 'data/HumBugDB/data/audio/'] & FG
 
 
 df = pd.read_csv('data/HumBugDB/data/metadata/neurips_2021_zenodo_0_0_1.csv')

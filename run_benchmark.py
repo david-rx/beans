@@ -41,19 +41,18 @@ TASKS = [
     # ('classification', 'cbi'),
     # ('classification', 'humbugdb'),
     # ('detection', 'dcase'),
-    ('detection', 'enabirds'),
+    # ('detection', 'enabirds'),
     # ('detection', 'hiceas'),
     # ('detection', 'hainan-gibbons'),
-    # ('detection', 'dcase'),
-    # ('detection', 'rfcx'),
-    # ('classification', 'esc50'),
-    # ('classification', 'speech-commands'),
+    ('detection', 'rfcx'),
+    ('classification', 'esc50'),
+    ('classification', 'speech-commands'),
 ]
 
 for model_name, model_type, model_params in MODELS:
     for task, dataset in TASKS:
-        print(f'Running {dataset}-{model_name}', file=sys.stderr)
-        log_path = f'logs/{dataset}-{model_name}'
+        print(f'Running {dataset}-{model_name}-BioLingual', file=sys.stderr)
+        log_path = f'logs/{dataset}-{model_name}-BioLingual'
         try:
             if model_type in ['lr', 'svm', 'decisiontree', 'gbdt', 'xgboost']:
                 python[
@@ -71,8 +70,8 @@ for model_name, model_type, model_params in MODELS:
                     '--dataset', dataset,
                     '--model-type', model_type,
                     '--batch-size', '32',
-                    '--epochs', '20',
-                    '--lrs', '[5e-5]',
+                    '--epochs', '50',
+                    '--lrs', '[5e-5, 1e-5, 1e-4]',
                     '--log-path', log_path,
                     '--num-workers', '1',
                     "--model-path", ""

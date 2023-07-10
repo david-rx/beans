@@ -5,8 +5,8 @@ from plumbum import local, FG
 AUGMENT = False
 DF_AUG_PATH = "/Users/davidrobinson/Code/animals/AudioAug-Diffusion/watkins_augmentations.csv"
 
-# local['wget']['https://archive.org/download/watkins_202104/watkins.zip', '-P', 'data'] & FG
-# local['unzip']['data/watkins.zip.2', '-d', 'data/watkins/'] & FG
+local['wget']['https://archive.org/download/watkins_202104/watkins.zip', '-P', 'data'] & FG
+local['unzip']['data/watkins.zip.2', '-d', 'data/watkins/'] & FG
 
 
 def build_path(path: str):

@@ -134,8 +134,8 @@ def eval_pytorch_model(model, dataloader, metric_factory, device, desc):
             total_loss += loss.cpu().item()
             steps += 1
 
-            logits = logits.to("cpu")
-            y = y.to("cpu") # metrics don't work on Apple silicon
+            # logits = logits.to("cpu")
+            # y = y.to("cpu") # metrics don't work on Apple silicon
 
             metric.update(logits, y)
 
@@ -305,7 +305,7 @@ def main():
     else:
         log_file = sys.stderr
 
-    device = torch.device('mps')
+    device = torch.device('cuda')
     target_sample_rate = None
     if args.model_type == 'vggish':
         feature_type = 'vggish'

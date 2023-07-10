@@ -1,10 +1,10 @@
 import argparse
-from beans.clap.loss import ClipLoss
-import fairseq
+# from beans.clap.loss import ClipLoss
+# import fairseq
 import torch
 import torch.nn as nn
 import torchvision
-from pytorch_metric_learning import miners, losses, distances
+# from pytorch_metric_learning import miners, losses, distances
 from transformers import AutoProcessor, ClapModel, ClapAudioModelWithProjection, ClapProcessor
 import re
 
@@ -202,7 +202,7 @@ class CLAPClassifier(nn.Module):
         super().__init__()
         self.clap = ClapAudioModelWithProjection.from_pretrained(model_path, projection_dim=num_classes,
                                                                 ignore_mismatched_sizes=True)
-        checkpoint = torch.load("animals-v0.pt", map_location="cpu")
+        checkpoint = torch.load("BioLingual.pt", map_location="cpu")
         if isinstance(checkpoint, dict) and "state_dict" in checkpoint:
             state_dict = checkpoint["state_dict"]
         else:
@@ -219,17 +219,17 @@ class CLAPClassifier(nn.Module):
 
     def forward(self, x, y=None):
         x = [s.cpu().numpy() for s in x]
-        inputs = self.processor(audios=x, return_tensors="pt", sampling_rate=48000).to("mps")
+        inputs = self.processor(audios=x, return_tensors="pt", sampling_rate=48000, padding=True).to("cuda")
         out = self.clap(**inputs).audio_embeds
         loss = self.loss_func(out, y)
         
         return loss, out
     
 class CLAPContrastiveClassifier(nn.Module):
-    def __init__(self, model_path, labels, multi_label = False, use_contrastive_loss = False) -> None:
+    def __init__(self, model_path, labels, multi_label = False) -> None:
         super().__init__()
         self.clap = ClapModel.from_pretrained(model_path)
-        checkpoint = torch.load("animals-v0.pt", map_location="cpu")
+        checkpoint = torch.load("BioLingual.pt", map_location="cpu")
         if isinstance(checkpoint, dict) and "state_dict" in checkpoint:
             state_dict = checkpoint["state_dict"]
         else:
@@ -242,7 +242,7 @@ class CLAPContrastiveClassifier(nn.Module):
             self.loss_func = nn.BCEWithLogitsLoss()
         else:
             self.loss_func = nn.CrossEntropyLoss()
-        self.use_contrastive_loss = use_contrastive_loss
+        self.use_contrastive_loss = False
         # self.loss_func = ClipLoss()
         # self.noncontrastive_loss = nn.CrossEntropyLoss()
 
@@ -250,17 +250,11 @@ class CLAPContrastiveClassifier(nn.Module):
 
     def forward(self, x, y=None, training = True):
         x = [s.cpu().numpy() for s in x]
-        if training and self.use_contrastive_loss: # train-time, contrastive learning within the batch
-            batch_labels = [self.labels[index] for index in y]
-            inputs = self.processor(audios=x, text=batch_labels, return_tensors="pt", sampling_rate=48000, padding=True).to("mps")
-        else: #test-time
-            inputs = self.processor(audios=x, text=self.labels, return_tensors="pt", sampling_rate=48000, padding=True).to("mps")
-        clap_output = self.clap(**inputs, return_loss=True)
+
+        inputs = self.processor(audios=x, text=self.labels, return_tensors="pt", sampling_rate=48000, padding=True).to("cuda")
+        clap_output = self.clap(**inputs)
         out = clap_output.logits_per_audio
-        if self.use_contrastive_loss:
-            loss = clap_output.loss
-        else:
-            loss = self.noncontrastive_mm_loss(audio_embeds=clap_output.audio_embeds, text_embeds=clap_output.text_embeds, logit_scale_audio=self.clap.logit_scale_a.exp(), label_indices=y)
+        loss = self.noncontrastive_mm_loss(audio_embeds=clap_output.audio_embeds, text_embeds=clap_output.text_embeds, logit_scale_audio=self.clap.logit_scale_a.exp(), label_indices=y)
         return loss, out
     
     def noncontrastive_mm_loss(self, audio_embeds, text_embeds, logit_scale_audio, label_indices):
@@ -272,6 +266,7 @@ class CLAPContrastiveClassifier(nn.Module):
 
     
 def rename_state_dict(state_dict, exclude_text = False):
+    state_dict = {(k.replace("module.", "", 1) if k.startswith("module.") else k): v for k, v in state_dict.items()}
     model_state_dict = {}
 
     sequential_layers_pattern = r".*sequential.(\d+).*"
@@ -320,7 +315,7 @@ class CLAPZeroShotClassifier(nn.Module):
     def __init__(self, model_path, labels, multi_label=False) -> None:
         super().__init__()
         self.clap = ClapModel.from_pretrained(model_path)
-        checkpoint = torch.load("animals-v0.pt", map_location="cpu")
+        checkpoint = torch.load("BioLingual.pt", map_location="cpu")
         if isinstance(checkpoint, dict) and "state_dict" in checkpoint:
             state_dict = checkpoint["state_dict"]
         else:
@@ -334,7 +329,7 @@ class CLAPZeroShotClassifier(nn.Module):
 
     def forward(self, x, y=None):
         x = [s.cpu().numpy() for s in x]
-        inputs = self.processor(audios=x, text=self.labels, return_tensors="pt", sampling_rate=48000, padding=True).to("mps")
+        inputs = self.processor(audios=x, text=self.labels, return_tensors="pt", sampling_rate=48000, padding=True).to("cuda")
         if self.multi_label:
             out = self.clap(**inputs).logits_per_audio
             print(out)

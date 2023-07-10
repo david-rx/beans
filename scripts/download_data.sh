@@ -16,4 +16,3 @@ python scripts/hainan_gibbons.py
 python scripts/esc50.py
 python scripts/speech_commands.py
 python scripts/validate_data.py
-python scripts/fsd50k.py
