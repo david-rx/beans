@@ -7,6 +7,10 @@ import sys
 import yaml
 from beans.multitask import load_model_for_task, load_resnet_base
 
+import torch
+from torch.utils.data import Subset
+import numpy as np
+
 from sklearn import preprocessing
 from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.svm import SVC
@@ -20,9 +24,9 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from xgboost import XGBClassifier
 
-from beans.metrics import Accuracy, MeanAveragePrecision
+from beans.metrics import Accuracy, MeanAveragePrecision, MultiLabelMetrics, RecallAtK
 from beans.models import AvesClassifier, CLAPClassifier, CLAPContrastiveClassifier, CLAPZeroShotClassifier, ResNetClassifier, VGGishClassifier
-from beans.datasets import ClassificationDataset, RecognitionDataset
+from beans.datasets import ClassificationDataset, MultiLabelClassificationDataset, RecognitionDataset
 
 
 def read_datasets(path):
@@ -30,7 +34,6 @@ def read_datasets(path):
         datasets = yaml.safe_load(f)
 
     return {d['name']: d for d in datasets}
-
 
 def spec2feats(spec):
     spec = torch.cat([
@@ -143,6 +146,47 @@ def eval_pytorch_model(model, dataloader, metric_factory, device, desc):
 
     return total_loss, metric.get_primary_metric()
 
+def eval_tta(model, dataloader, metric_factory, device, desc):
+    model.eval()
+    total_loss = 0.
+    steps = 0
+    metric = metric_factory()
+
+    with torch.no_grad():
+        for x, y in tqdm(dataloader, desc=desc):
+            x = x.to(device)
+            y = y.to(device)
+
+            loss, logits = model(x, y) #training = False
+            total_loss += loss.cpu().item()
+            steps += 1
+
+            logits = logits.to("cpu")
+            y = y.to("cpu") # metrics don't work on Apple silicon
+
+            metric.update(logits, y)
+
+    total_loss /= steps
+
+    return total_loss, metric.get_primary_metric()
+
+def get_subset_dataset(dataset, subset_percent=0.1):
+    # Get the number of data points in the dataset
+    data_size = len(dataset)
+    indices = list(range(data_size))
+    
+    # Shuffle the indices
+    np.random.shuffle(indices)
+    
+    # Split the indices based on the desired subset size
+    split = int(np.floor(subset_percent * data_size))
+    subset_indices = indices[:split]
+    
+    # Create a Subset
+    subset_dataset = Subset(dataset, subset_indices)
+    
+    return subset_dataset
+
 
 def train_pytorch_model(
     args,
@@ -200,7 +244,7 @@ def train_pytorch_model(
             model = CLAPZeroShotClassifier(
                 model_path="laion/clap-htsat-unfused",
                 labels=human_labels, #+ [negative_label]
-                multi_label=(args.task=='detection')
+                multi_label=(args.task=='detection' or args.task == "multilabel")
             ).to(device)
             return model, 0.0
         elif args.model_type == "contrastive-clap":
@@ -209,6 +253,7 @@ def train_pytorch_model(
                 labels=human_labels,
                 multi_label=(args.task=='detection')
             ).to(device)
+        
                 
 
         optimizer = optim.Adam(params=model.parameters(), lr=lr)
@@ -284,7 +329,7 @@ def main():
     parser.add_argument('--epochs', type=int, default=30)
     parser.add_argument('--lrs', type=str)
     parser.add_argument('--params', type=str)
-    parser.add_argument('--task', choices=['classification', 'detection'])
+    parser.add_argument('--task', choices=['classification', 'detection', 'multilabel'])
     parser.add_argument('--model-type', choices=[
         'lr', 'svm', 'decisiontree', 'gbdt', 'xgboost',
         'resnet18', 'resnet18-pretrained',
@@ -318,11 +363,13 @@ def main():
         feature_type = 'mfcc'
 
     dataset = datasets[args.dataset]
+    # dataset.labels = load_labels()
     if target_sample_rate != None:
         dataset["sample_rate"] = target_sample_rate
 
     num_labels = dataset['num_labels']
     human_labels = dataset["human_labels"] if "human_labels" in dataset else dataset["labels"]
+    # human_labels = [f"One or more {label} making sounds" for label in human_labels]
 
     if dataset['type'] == 'classification':
         dataset_train = ClassificationDataset(
@@ -342,6 +389,32 @@ def main():
             max_duration=dataset['max_duration'],
             feature_type=feature_type)
         dataset_test = ClassificationDataset(
+            metadata_path=dataset['test_data'],
+            num_labels=num_labels,
+            labels=dataset['labels'],
+            unknown_label=dataset['unknown_label'],
+            sample_rate=dataset['sample_rate'],
+            max_duration=dataset['max_duration'],
+            feature_type=feature_type)
+        
+    elif dataset['type'] == "multilabel":
+        dataset_train = MultiLabelClassificationDataset(
+            metadata_path=dataset['train_data'],
+            num_labels=num_labels,
+            labels=dataset['labels'],
+            unknown_label=dataset['unknown_label'],
+            sample_rate=dataset['sample_rate'],
+            max_duration=dataset['max_duration'],
+            feature_type=feature_type)
+        dataset_valid = MultiLabelClassificationDataset(
+            metadata_path=dataset['valid_data'],
+            num_labels=num_labels,
+            labels=dataset['labels'],
+            unknown_label=dataset['unknown_label'],
+            sample_rate=dataset['sample_rate'],
+            max_duration=dataset['max_duration'],
+            feature_type=feature_type)
+        dataset_test = MultiLabelClassificationDataset(
             metadata_path=dataset['test_data'],
             num_labels=num_labels,
             labels=dataset['labels'],
@@ -386,6 +459,7 @@ def main():
     else:
         raise ValueError(f"Invalid dataset type: {dataset['type']}")
 
+
     dataloader_train = DataLoader(
         dataset=dataset_train,
         batch_size=args.batch_size,
@@ -413,6 +487,7 @@ def main():
 
     if args.task == 'classification':
         Metric = Accuracy
+        # Metric = RecallAtK
     elif args.task == 'detection':
         Metric = MeanAveragePrecision
 

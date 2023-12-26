@@ -14,8 +14,8 @@ MODELS = [
     # ('resnet18', 'resnet18', ''),
     # ('clap', 'clap', ''),
     # ('resnet18-pretrained', 'resnet18-pretrained', ''),
-    # ('zero-shot-clap', 'zero-shot-clap', ''),
-    ("constrastive-clap", "contrastive-clap", ""),
+    ('zero-shot-clap', 'zero-shot-clap', ''),
+    # ("constrastive-clap", "contrastive-clap", ""),
     # ('resnet50', 'resnet50', ''),
     # ('resnet50-pretrained', 'resnet50-pretrained', ''),
     # ('resnet152', 'resnet152', ''),
@@ -25,35 +25,31 @@ MODELS = [
 ]
 
 TASKS = [
-    # ('classification', 'urbansound8k-1'),
-    # ('classification', 'urbansound8k-2'),
-    # ('classification', 'urbansound8k-3'),
-    # ('classification', 'urbansound8k-4'),
-    # ('classification', 'urbansound8k-5'),
-    # ('classification', 'urbansound8k-6'),
-    # ('classification', 'urbansound8k-7'),
-    # ('classification', 'urbansound8k-8'),
-    # ('classification', 'urbansound8k-9'),
-    # ('classification', 'urbansound8k-10'),
-    # ('classification', 'watkins'),
-    # ('classification', 'bats'),
-    # ('classification', 'dogs'),
-    # ('classification', 'cbi'),
-    # ('classification', 'humbugdb'),
-    # ('detection', 'dcase'),
+    # ('classification', 'animals'),
+    # ("classification", "bat_behaviors"),
+    # ("classification", "bat_actions"),
+    # ("classification", "bat_pre_actions"),
+    # ("multilabel", "cbi_behavior"),
+    ('classification', 'watkins'),
+    ('classification', 'cbi'),
+    ('classification', 'bats'),
+    ('classification', 'dogs'),
+    ('classification', 'humbugdb'),
     ('detection', 'enabirds'),
-    # ('detection', 'hiceas'),
-    # ('detection', 'hainan-gibbons'),
-    # ('detection', 'dcase'),
-    # ('detection', 'rfcx'),
-    # ('classification', 'esc50'),
+    ('classification', 'bats'),
+    ('detection', 'hiceas'),
+    ('detection', 'hainan-gibbons'),
+    ('classification', 'animals'),
+    ('detection', 'dcase'),
+    ('detection', 'rfcx'),
+    ('classification', 'esc50'),
     # ('classification', 'speech-commands'),
 ]
 
 for model_name, model_type, model_params in MODELS:
     for task, dataset in TASKS:
-        print(f'Running {dataset}-{model_name}', file=sys.stderr)
-        log_path = f'logs/{dataset}-{model_name}'
+        print(f'Running {dataset}-{model_name}-BioLingual-1.5.3e20', file=sys.stderr)
+        log_path = f'logs/{dataset}-{model_name}-BioLingual-1.5.3e20'
         try:
             if model_type in ['lr', 'svm', 'decisiontree', 'gbdt', 'xgboost']:
                 python[
@@ -71,10 +67,10 @@ for model_name, model_type, model_params in MODELS:
                     '--dataset', dataset,
                     '--model-type', model_type,
                     '--batch-size', '32',
-                    '--epochs', '20',
-                    '--lrs', '[5e-5]',
+                    '--epochs', '50',
+                    '--lrs', '[5e-5, 1e-5, 1e-4]',
                     '--log-path', log_path,
-                    '--num-workers', '1',
+                    '--num-workers', '1',   
                     "--model-path", ""
                     ] & FG
         except ProcessExecutionError as e:

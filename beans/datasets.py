@@ -157,7 +157,11 @@ class ClassificationDataset(Dataset):
         self.ys = []
 
         for _, row in df.iterrows():
-            self.xs.append(row['path'])
+            if "animals" in metadata_path:
+                self.xs.append("." + row['path'])
+                # row["label"] = row["caption"]
+            else:
+                self.xs.append(row['path'])
 
             if row['label'] not in label_to_id:
                 if unknown_label is not None:
@@ -205,7 +209,98 @@ class ClassificationDataset(Dataset):
         else:
             assert False
 
-        return (x, self.ys[idx])    
+        return (x, self.ys[idx])
+    
+import pandas as pd
+import torch
+from torch.utils.data import Dataset
+
+class MultiLabelClassificationDataset(Dataset):
+    def __init__(
+        self,
+        metadata_path,
+        num_labels,
+        labels,
+        unknown_label,
+        sample_rate,
+        max_duration,
+        feature_type,
+    ):
+        super().__init__()
+
+        label_to_id = {lbl: i for i, lbl in enumerate(labels)}
+        self.sample_rate = sample_rate
+        self.max_duration = max_duration
+        self.feature_type = feature_type
+
+        df = pd.read_csv(metadata_path).iloc[0:250]
+
+        self.xs = []
+        self.ys = []
+
+        for _, row in df.iterrows():
+            
+
+            label_ids = []
+
+            print("labels", row["filtered_label"])
+            if pd.isna(row["filtered_label"]):
+                continue
+            self.xs.append(row['path'])
+
+            for lbl in row['filtered_label'].split(','):
+                lbl = lbl.strip()  # remove leading/trailing spaces
+                if lbl not in label_to_id:
+                    if unknown_label is not None:
+                        label_id = label_to_id[unknown_label]
+                    else:
+                        raise KeyError(f"Unknown label: {lbl}")
+                else:
+                    label_id = label_to_id[lbl]
+
+                label_ids.append(label_id)
+
+            y = torch.zeros(num_labels)
+            y[label_ids] = 1
+            self.ys.append(y)
+
+    def __len__(self):
+        return len(self.xs)
+
+    def __getitem__(self, idx):
+        if self.feature_type == 'waveform':
+            x = _get_waveform(
+                self.xs[idx],
+                max_duration=self.max_duration,
+                target_sample_rate=self.sample_rate)
+
+        elif self.feature_type == 'vggish':
+            x = _get_vggish_spectrogram(
+                self.xs[idx],
+                max_duration=self.max_duration)
+        elif self.feature_type == "clap":
+            x = _get_vggish_spectrogram(
+                self.xs[idx],
+                max_duration=self.max_duration,
+                target_sample_rate=48000
+                )
+
+        elif self.feature_type == 'melspectrogram':
+            x = _get_spectrogram(
+                self.xs[idx],
+                max_duration=self.max_duration,
+                target_sample_rate=self.sample_rate)
+
+        elif self.feature_type == 'mfcc':
+            x = _get_spectrogram(
+                self.xs[idx],
+                max_duration=self.max_duration,
+                target_sample_rate=self.sample_rate,
+                return_mfcc=True)
+        else:
+            assert False
+
+        return (x, self.ys[idx])
 
 class RecognitionDataset(Dataset):
     def __init__(

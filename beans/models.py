@@ -1,10 +1,8 @@
 import argparse
 from beans.clap.loss import ClipLoss
-import fairseq
 import torch
 import torch.nn as nn
 import torchvision
-from pytorch_metric_learning import miners, losses, distances
 from transformers import AutoProcessor, ClapModel, ClapAudioModelWithProjection, ClapProcessor
 import re
 
@@ -198,17 +196,19 @@ class ResNetMetricLearning(nn.Module):
         return loss, encodings
     
 class CLAPClassifier(nn.Module):
-    def __init__(self, model_path, num_classes, multi_label = False) -> None:
+    def __init__(self, model_path, num_classes, multi_label = False, load_animals=False) -> None:
         super().__init__()
         self.clap = ClapAudioModelWithProjection.from_pretrained(model_path, projection_dim=num_classes,
                                                                 ignore_mismatched_sizes=True)
-        checkpoint = torch.load("animals-v0.pt", map_location="cpu")
-        if isinstance(checkpoint, dict) and "state_dict" in checkpoint:
-            state_dict = checkpoint["state_dict"]
-        else:
-            state_dict = checkpoint
-        state_dict = rename_state_dict(state_dict, exclude_text= True)
-        self.clap.audio_model.load_state_dict(state_dict, strict=False)
+        if load_animals:
+            checkpoint = torch.load("./v2.1.pt", map_location="cpu")
+            if isinstance(checkpoint, dict) and "state_dict" in checkpoint:
+                state_dict = checkpoint["state_dict"]
+            else:
+                state_dict = checkpoint
+            state_dict = rename_state_dict(state_dict, exclude_text = True)
+            self.clap.audio_model.load_state_dict(state_dict, strict=False)
+
         self.processor = AutoProcessor.from_pretrained("laion/clap-htsat-unfused")
         self.multi_label = multi_label
 
@@ -219,7 +219,7 @@ class CLAPClassifier(nn.Module):
 
     def forward(self, x, y=None):
         x = [s.cpu().numpy() for s in x]
-        inputs = self.processor(audios=x, return_tensors="pt", sampling_rate=48000).to("mps")
+        inputs = self.processor(audios=x, return_tensors="pt", sampling_rate=48000, padding=True).to("mps")
         out = self.clap(**inputs).audio_embeds
         loss = self.loss_func(out, y)
         
@@ -229,7 +229,7 @@ class CLAPContrastiveClassifier(nn.Module):
     def __init__(self, model_path, labels, multi_label = False, use_contrastive_loss = False) -> None:
         super().__init__()
         self.clap = ClapModel.from_pretrained(model_path)
-        checkpoint = torch.load("animals-v0.pt", map_location="cpu")
+        checkpoint = torch.load("./BioLingual.pt", map_location="cpu")
         if isinstance(checkpoint, dict) and "state_dict" in checkpoint:
             state_dict = checkpoint["state_dict"]
         else:
@@ -237,16 +237,28 @@ class CLAPContrastiveClassifier(nn.Module):
         state_dict = rename_state_dict(state_dict)
         self.clap.load_state_dict(state_dict, strict=False)
         self.processor = AutoProcessor.from_pretrained("laion/clap-htsat-unfused")
+        self.clap.audio_model.train()
+        # for param in self.clap.text_model.parameters():
+        #     param.requires_grad = False
+        # for param in self.clap.text_projection.parameters():
+        #     param.requires_grad = False
+
 
         if multi_label:
             self.loss_func = nn.BCEWithLogitsLoss()
         else:
             self.loss_func = nn.CrossEntropyLoss()
         self.use_contrastive_loss = use_contrastive_loss
+        self.liner_similarity = nn.Linear(1024, 1)
         # self.loss_func = ClipLoss()
         # self.noncontrastive_loss = nn.CrossEntropyLoss()
+        if self.use_contrastive_loss:
+            self.loss_func = losses.MultiSimilarityLoss(alpha=1, beta=60, base=0.5) # 1,2,3; 40,50,60
+            self.use_miner = True
+            self.miner = miners.TripletMarginMiner(margin=0.0, type_of_triplets="all")
 
         self.labels = labels
+        self.contrastive_percent = 0.25
 
     def forward(self, x, y=None, training = True):
         x = [s.cpu().numpy() for s in x]
@@ -258,20 +270,38 @@ class CLAPContrastiveClassifier(nn.Module):
         clap_output = self.clap(**inputs, return_loss=True)
         out = clap_output.logits_per_audio
         if self.use_contrastive_loss:
-            loss = clap_output.loss
+            text_embeds = clap_output.text_embeds
+            audio_embeds = clap_output.audio_embeds
+            embeds = torch.cat([text_embeds, audio_embeds])
+            labels = torch.cat([y, y])
+            hard_pairs = self.miner(embeds.cpu(), labels.cpu())
+            loss = self.loss_func(embeds, labels, hard_pairs)
+            # loss = clap_output.loss
         else:
             loss = self.noncontrastive_mm_loss(audio_embeds=clap_output.audio_embeds, text_embeds=clap_output.text_embeds, logit_scale_audio=self.clap.logit_scale_a.exp(), label_indices=y)
+            # if not (torch.isnan(clap_output.loss).any() or torch.isinf(clap_output.loss).any()):
+            #     print("clap output loss", clap_output.loss)
+            #     loss = (1 - self.contrastive_percent) * loss + self.contrastive_percent * clap_output.loss
+            # loss, out = self.noncontrastive_mm_linear_loss(audio_embeds=clap_output.audio_embeds, text_embeds=clap_output.text_embeds, logit_scale_audio=self.clap.logit_scale_a.exp(), label_indices=y)
         return loss, out
     
     def noncontrastive_mm_loss(self, audio_embeds, text_embeds, logit_scale_audio, label_indices):
         # logits_per_text = torch.matmul(text_embeds, audio_embeds.t()) * logit_scale_text
         logits_per_audio = torch.matmul(audio_embeds, text_embeds.t()) * logit_scale_audio #only optimize on text prediction
+        print(logits_per_audio)
         return self.loss_func(logits_per_audio, label_indices)
-
-
-
+    
+    def noncontrastive_mm_linear_loss(self, audio_embeds, text_embeds, logit_scale_audio, label_indices):
+        text_embeds_by_batch = text_embeds.repeat(audio_embeds.shape[0], 1).view(-1, 512)
+        audio_embeds_by_labels = audio_embeds.repeat(len(self.labels), 1).view(-1, 512)
+        mm_embeds = torch.cat((audio_embeds_by_labels, text_embeds_by_batch), dim=-1)
+        logits_per_audio = self.liner_similarity(mm_embeds)
+        logits_per_audio = logits_per_audio.reshape(audio_embeds.shape[0], len(self.labels))
+        return self.loss_func(logits_per_audio, label_indices), logits_per_audio
     
 def rename_state_dict(state_dict, exclude_text = False):
+    state_dict = {(k.replace("module.", "", 1) if k.startswith("module.") else k): v for k, v in state_dict.items()}
+
     model_state_dict = {}
 
     sequential_layers_pattern = r".*sequential.(\d+).*"
@@ -319,16 +349,20 @@ class CLAPZeroShotClassifier(nn.Module):
 
     def __init__(self, model_path, labels, multi_label=False) -> None:
         super().__init__()
-        self.clap = ClapModel.from_pretrained(model_path)
-        checkpoint = torch.load("animals-v0.pt", map_location="cpu")
+        self.clap = ClapModel.from_pretrained("davidrrobinson/BioLingual")
+        checkpoint = torch.load("./biolingual-1.5.3e20.pt", map_location="cpu")
         if isinstance(checkpoint, dict) and "state_dict" in checkpoint:
             state_dict = checkpoint["state_dict"]
         else:
             state_dict = checkpoint
         state_dict = rename_state_dict(state_dict)
         self.clap.load_state_dict(state_dict, strict=False)
+        # self.clap.push_to_hub("BioLingual")
         self.processor = AutoProcessor.from_pretrained("laion/clap-htsat-unfused")
+        # self.processor.push_to_hub("BioLingual")
         self.loss_func = nn.CrossEntropyLoss()
+        if multi_label:
+            self.loss_func = nn.BCEWithLogitsLoss()
         self.labels = labels
         self.multi_label = multi_label
 
@@ -337,9 +371,9 @@ class CLAPZeroShotClassifier(nn.Module):
         inputs = self.processor(audios=x, text=self.labels, return_tensors="pt", sampling_rate=48000, padding=True).to("mps")
         if self.multi_label:
             out = self.clap(**inputs).logits_per_audio
-            print(out)
         else:
             out = self.clap(**inputs).logits_per_audio
+
         loss = self.loss_func(out, y)
         return loss, out
     
