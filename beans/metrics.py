@@ -15,6 +15,26 @@ class Accuracy:
 
     def get_primary_metric(self):
         return self.get_metric()['acc']
+    
+from sklearn.metrics import precision_recall_fscore_support
+
+class MultiLabelMetrics:
+    def __init__(self):
+        self.y_true = []
+        self.y_pred = []
+
+    def update(self, logits, y):
+        y_pred = (torch.sigmoid(logits) > 0.5).int()
+        self.y_true.extend(y.cpu().numpy().tolist())
+        self.y_pred.extend(y_pred.cpu().numpy().tolist())
+
+    def get_metric(self):
+        precision, recall, f1, _ = precision_recall_fscore_support(self.y_true, self.y_pred, average='micro')
+        return {'precision': precision, 'recall': recall, 'f1': f1}
+
+    def get_primary_metric(self):
+        return self.get_metric()['f1']
+
 
 
 class BinaryF1Score:
@@ -210,3 +230,21 @@ class MeanAveragePrecision:
 
     def get_primary_metric(self):
         return self.get_metric()['map']
+    
+class RecallAtK:
+    def __init__(self, k=5):
+        self.k = k
+        self.num_correct = 0
+        self.num_total = 0
+
+    def update(self, logits, y):
+        _, topk_preds = torch.topk(logits, self.k, dim=1)
+        correct = topk_preds.eq(y.view(-1, 1).expand_as(topk_preds))
+        self.num_correct += correct.sum().item()
+        self.num_total += logits.size(0)
+
+    def get_metric(self):
+        return {'recall@{}'.format(self.k): 0. if self.num_total == 0 else self.num_correct / self.num_total}
+
+    def get_primary_metric(self):
+        return self.get_metric()['recall@{}'.format(self.k)]

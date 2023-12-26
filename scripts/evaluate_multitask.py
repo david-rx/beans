@@ -107,6 +107,7 @@ def load_multitask_dataset(datasets, feature_type, batch_size, num_workers = 1, 
                 window_width=dataset['window_width'],
                 window_shift=dataset['window_shift'],
                 feature_type=feature_type)
+            print(f"dataset {dataset_name} has {dataset_train.total} examples with {dataset_train.ones_count} positives.")
         else:
             raise ValueError(f"Invalid dataset type: {dataset['type']}")
 
@@ -533,6 +534,7 @@ def main():
                 window_width=dataset['window_width'],
                 window_shift=dataset['window_shift'],
                 feature_type=feature_type)
+            print(f"dataset {dataset_name} has {dataset_train.total} examples with {dataset_train.ones_count} positives.")
         else:
             raise ValueError(f"Invalid dataset type: {dataset['type']}")
 
@@ -559,6 +561,7 @@ def main():
                 num_workers=args.num_workers,
                 pin_memory=True,
                 persistent_workers=True)
+        
         else:
             dataloader_test = None
         
